@@ -225,8 +225,7 @@ class PulseDot(QWidget):
 
 # ── Main Window ───────────────────────────────────────────────────────────────
 class MainWindow(QWidget):
-    REFRESH = 60
-    MIN_WIDTH = 360
+
 
     def __init__(self):
         super().__init__()
@@ -255,7 +254,7 @@ class MainWindow(QWidget):
     # ── build ───────────────────────────────────────────────────────────────
     def _build_ui(self):
         self._root = QVBoxLayout(self)
-        self._root.setContentsMargins(24, 22, 24, 18)
+
         self._root.setSpacing(0)
 
         self._build_search_section()
@@ -265,7 +264,7 @@ class MainWindow(QWidget):
 
     def _build_search_section(self):
         self._root.addWidget(self._make_caption("PLAYER"))
-        self._root.addSpacing(8)
+
 
         search_row = QHBoxLayout()
         search_row.setSpacing(0)
@@ -273,9 +272,7 @@ class MainWindow(QWidget):
         self._field = QLineEdit()
         self._field.setPlaceholderText("Enter player name")
         self._field.setClearButtonEnabled(True)
-        self._field.setFixedHeight(40)
-        if self._ff:
-            self._field.setFont(QFont(self._ff, 10))
+
         self._field.returnPressed.connect(self._submit)
         self._field.setStyleSheet(f"""
             QLineEdit {{
@@ -291,11 +288,7 @@ class MainWindow(QWidget):
         """)
 
         self._btn = QPushButton("TRACK")
-        self._btn.setFixedSize(80, 40)
-        self._btn.setCursor(Qt.PointingHandCursor)
-        self._btn.clicked.connect(self._submit)
-        if self._ff:
-            bf = QFont(self._ff, 8)
+
             bf.setLetterSpacing(QFont.AbsoluteSpacing, 1.8)
             self._btn.setFont(bf)
         self._btn.setStyleSheet(f"""
@@ -320,7 +313,7 @@ class MainWindow(QWidget):
         self._root.addLayout(search_row)
 
     def _build_badge_section(self):
-        self._root.addSpacing(20)
+
         badge_row = QHBoxLayout()
         self._badge = BadgeWidget(self._ff, self)
         badge_row.addStretch(1)
@@ -332,25 +325,17 @@ class MainWindow(QWidget):
         self._root.addSpacing(8)
         self._name_lbl = QLabel("")
         self._name_lbl.setAlignment(Qt.AlignCenter)
-        self._name_lbl.setFont(QFont(self._ff, 26, QFont.Bold) if self._ff else QFont("Arial", 18, QFont.Bold))
-        self._name_lbl.setStyleSheet(f"color: {TEXT};")
-        self._root.addWidget(self._name_lbl)
 
-        self._root.addSpacing(4)
-        self._sub = QLabel("Search for a player to begin.")
-        self._sub.setAlignment(Qt.AlignCenter)
-        self._sub.setWordWrap(True)
-        self._sub.setFont(QFont(self._ff, 9) if self._ff else QFont("Arial", 9))
         self._sub.setStyleSheet(f"color: {MUTED};")
         self._root.addWidget(self._sub)
 
     def _build_status_section(self):
-        self._root.addSpacing(16)
+
         self._root.addWidget(self._make_divider())
         self._root.addSpacing(8)
 
         bar = QHBoxLayout()
-        bar.setSpacing(6)
+
 
         self._dot = PulseDot(self)
         self._status = self._make_caption("IDLE")
@@ -373,7 +358,7 @@ class MainWindow(QWidget):
     def _make_caption(self, text):
         lbl = QLabel(text)
         if self._ff:
-            f = QFont(self._ff, 7)
+
             f.setLetterSpacing(QFont.AbsoluteSpacing, 1.2)
             lbl.setFont(f)
         lbl.setStyleSheet(f"color: {MUTED};")
@@ -418,7 +403,7 @@ class MainWindow(QWidget):
         name = data.get("name", self._player)
 
         self._name_lbl.setText(name)
-        self._set_subtext("Tracking live rank updates every 60s.")
+
 
         if img_url:
             image_worker = ImageWorker(img_url)
@@ -451,7 +436,7 @@ class MainWindow(QWidget):
 
     def _start_countdown(self):
         self._countdown = self.REFRESH
-        self._refresh_lbl.setText(f"↻  {self._countdown}s")
+        self._refresh_lbl.setText(f"↻  {self._format_countdown(self._countdown)}")
         self._countdown -= 1
         self._countdown_timer.start()
         self._refresh_timer.start(self.REFRESH * 1000)
@@ -462,12 +447,13 @@ class MainWindow(QWidget):
 
     def _tick_countdown(self):
         if self._countdown > 0:
-            self._refresh_lbl.setText(f"↻  {self._countdown}s")
+            self._refresh_lbl.setText(f"↻  {self._format_countdown(self._countdown)}")
             self._countdown -= 1
             return
 
         self._refresh_lbl.setText("")
         self._countdown_timer.stop()
+
 
     def _set_subtext(self, text, is_error=False):
         color = RED if is_error else MUTED
@@ -479,9 +465,7 @@ class MainWindow(QWidget):
         self._btn.setEnabled(not busy)
 
     def _resize_to(self, name):
-        name_font = QFont(self._ff, 20, QFont.Bold) if self._ff else QFont("Arial", 18, QFont.Bold)
-        name_width = QFontMetrics(name_font).horizontalAdvance(name) + 80
-        badge_width = self._badge.TOTAL + 56
+
         wanted = max(name_width, badge_width, self.MIN_WIDTH)
         if wanted > self.width():
             self.setFixedWidth(wanted)

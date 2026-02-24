@@ -1,11 +1,10 @@
 # BF6 Rank Tracker
 
-A lightweight desktop app (PySide6) that tracks a Battlefield 6 player's rank and refreshes automatically every 60 seconds.
+
 
 ## Features
 - Track a player by name
 - Shows the player's rank badge image and rank number overlay
-- Auto-refresh countdown and live status indicator
 - Error messaging for not found / timeout / no connection
 - Windows-friendly single-file entry point (`bf6_rank_tracker.py`)
 
