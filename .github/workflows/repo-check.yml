@@ -1,0 +1,33 @@
+name: Repo Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check for unresolved merge markers
+        run: python check_merge_conflicts.py
+
+      - name: Compile app
+        run: python -m py_compile bf6_rank_tracker.py
+
+      - name: Indentation sanity check
+        run: python -m tabnanny bf6_rank_tracker.py

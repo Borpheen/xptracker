@@ -68,3 +68,16 @@ python check_merge_conflicts.py
 ```
 
 This catches unresolved merge markers early.
+
+
+## Development checks
+
+Before pushing, run:
+
+```bash
+python check_merge_conflicts.py
+python -m py_compile bf6_rank_tracker.py
+python -m tabnanny bf6_rank_tracker.py
+```
+
+A GitHub Actions workflow also runs these checks on pull requests.
