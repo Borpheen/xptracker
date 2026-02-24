@@ -1,16 +1,34 @@
+"""BF6 rank tracker desktop app.
+
+Requirements:
+    pip install PySide6 requests
 """
-BF6 Rank Tracker — Redesigned
-Requirements: pip install PySide6 requests
-"""
-import sys, base64, requests
+
+import base64
+import sys
+
+import requests
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore  import Qt, QTimer, QThreadPool, QRunnable, QObject, Signal, Slot, QByteArray
-from PySide6.QtGui   import (
-    QFont, QFontDatabase, QPixmap, QPainter, QColor, QPalette,
-    QRadialGradient, QBrush, QFontMetrics, QPen
+from PySide6.QtCore import QByteArray, QObject, QRunnable, Qt, QThreadPool, QTimer, Signal, Slot
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QFontDatabase,
+    QFontMetrics,
+    QPainter,
+    QPalette,
+    QPen,
+    QPixmap,
+    QRadialGradient,
 )
 
 # ── Palette ───────────────────────────────────────────────────────────────────
@@ -207,7 +225,8 @@ class PulseDot(QWidget):
 
 # ── Main Window ───────────────────────────────────────────────────────────────
 class MainWindow(QWidget):
-    REFRESH = 60
+    REFRESH = 600  # 10 minutes
+    MIN_WIDTH = 420
 
     def __init__(self):
         super().__init__()
@@ -215,189 +234,206 @@ class MainWindow(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet(f"background: {BG};")
 
-        self._ff       = load_font()
-        self._pool     = QThreadPool.globalInstance()
-        self._player   = ""
+        self._ff = load_font()
+        self._pool = QThreadPool.globalInstance()
+        self._player = ""
         self._countdown = 0
+        self._workers = []  # Keep image workers alive until their signal emits.
 
         self._build_ui()
+        self._setup_timers()
+        self.setFixedWidth(self.MIN_WIDTH)
 
-        self._refresh_timer   = QTimer(self)
+    def _setup_timers(self):
+        self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._auto_refresh)
+
         self._countdown_timer = QTimer(self)
         self._countdown_timer.setInterval(1000)
         self._countdown_timer.timeout.connect(self._tick_countdown)
 
-        self._workers = []   # keep ImageWorker refs alive until signal fires
-        self.setFixedWidth(360)
-
-    # ── build ─────────────────────────────────────────────────────────────────
+    # ── build ───────────────────────────────────────────────────────────────
     def _build_ui(self):
-        ff = self._ff
+        self._root = QVBoxLayout(self)
+        self._root.setContentsMargins(28, 24, 28, 22)
+        self._root.setSpacing(0)
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(28, 28, 28, 22)
-        root.setSpacing(0)
+        self._build_search_section()
+        self._build_badge_section()
+        self._build_identity_section()
+        self._build_status_section()
 
-        # ── Search row ────────────────────────────────────────────────────────
+    def _build_search_section(self):
+        self._root.addWidget(self._make_caption("PLAYER"))
+        self._root.addSpacing(10)
+
         search_row = QHBoxLayout()
         search_row.setSpacing(0)
-        search_row.setContentsMargins(0, 0, 0, 0)
 
         self._field = QLineEdit()
-        self._field.setPlaceholderText("Player name…")
-        self._field.setFixedHeight(38)
-        if ff:
-            self._field.setFont(QFont(ff, 10))
+        self._field.setPlaceholderText("Enter player name")
+        self._field.setClearButtonEnabled(True)
+        self._field.setFixedHeight(44)
+        if self._ff:
+            self._field.setFont(QFont(self._ff, 11))
         self._field.returnPressed.connect(self._submit)
         self._field.setStyleSheet(f"""
             QLineEdit {{
                 background: {SURFACE};
                 border: 1px solid {EDGE};
                 border-right: none;
-                border-top-left-radius: 5px;
-                border-bottom-left-radius: 5px;
+                border-top-left-radius: 6px;
+                border-bottom-left-radius: 6px;
                 color: {TEXT};
                 padding: 0 12px;
             }}
-            QLineEdit:focus {{
-                border-color: #2e2a1c;
-                outline: none;
-            }}
+            QLineEdit:focus {{ border-color: #2e2a1c; }}
         """)
 
         self._btn = QPushButton("TRACK")
-        self._btn.setFixedSize(68, 38)
+        self._btn.setFixedSize(96, 44)
         self._btn.setCursor(Qt.PointingHandCursor)
         self._btn.clicked.connect(self._submit)
-        if ff:
-            bf = QFont(ff, 8)
-            bf.setLetterSpacing(QFont.AbsoluteSpacing, 1.8)
-            self._btn.setFont(bf)
+        self._set_button_font()
         self._btn.setStyleSheet(f"""
             QPushButton {{
                 background: {GOLD_DIM};
                 border: 1px solid #4a3b14;
-                border-top-right-radius: 5px;
-                border-bottom-right-radius: 5px;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
                 color: {GOLD2};
             }}
             QPushButton:hover  {{ background: #4a3b14; }}
             QPushButton:pressed {{ background: {GOLD_DIM}; }}
-            QPushButton:disabled {{ color: {MUTED}; background: {SURFACE}; border-color: {EDGE}; }}
+            QPushButton:disabled {{
+                color: {MUTED};
+                background: {SURFACE};
+                border-color: {EDGE};
+            }}
         """)
 
         search_row.addWidget(self._field)
         search_row.addWidget(self._btn)
-        root.addLayout(search_row)
+        self._root.addLayout(search_row)
 
-        # ── Badge (hero) ──────────────────────────────────────────────────────
-        root.addSpacing(26)
+    def _build_badge_section(self):
+        self._root.addSpacing(24)
         badge_row = QHBoxLayout()
-        badge_row.setContentsMargins(0, 0, 0, 0)
-        self._badge = BadgeWidget(ff, self)
+        self._badge = BadgeWidget(self._ff, self)
         badge_row.addStretch(1)
         badge_row.addWidget(self._badge)
         badge_row.addStretch(1)
-        root.addLayout(badge_row)
+        self._root.addLayout(badge_row)
 
-        # ── Name ─────────────────────────────────────────────────────────────
-        root.addSpacing(8)
+    def _build_identity_section(self):
+        self._root.addSpacing(8)
         self._name_lbl = QLabel("")
         self._name_lbl.setAlignment(Qt.AlignCenter)
-        if ff:
-            nf = QFont(ff, 28, QFont.Bold)
-        else:
-            nf = QFont("Arial", 18, QFont.Bold)
-        self._name_lbl.setFont(nf)
+        self._name_lbl.setFont(QFont(self._ff, 30, QFont.Bold) if self._ff else QFont("Arial", 22, QFont.Bold))
         self._name_lbl.setStyleSheet(f"color: {TEXT};")
-        root.addWidget(self._name_lbl)
+        self._root.addWidget(self._name_lbl)
 
-        # ── Sub-line (rank or message) ────────────────────────────────────────
-        root.addSpacing(3)
-        self._sub = QLabel("search for a player to begin")
+        self._root.addSpacing(8)
+        self._sub = QLabel("Search for a player to begin.")
         self._sub.setAlignment(Qt.AlignCenter)
-        if ff:
-            sf = QFont(ff, 9)
-        else:
-            sf = QFont("Arial", 9)
-        self._sub.setFont(sf)
-        self._sub.setStyleSheet(f"color: {MUTED}; letter-spacing: 0.5px;")
-        root.addWidget(self._sub)
+        self._sub.setWordWrap(True)
+        self._sub.setFont(QFont(self._ff, 10) if self._ff else QFont("Arial", 10))
+        self._sub.setStyleSheet(f"color: {MUTED};")
+        self._root.addWidget(self._sub)
 
-        # ── Status bar ────────────────────────────────────────────────────────
-        root.addSpacing(22)
+    def _build_status_section(self):
+        self._root.addSpacing(20)
+        self._root.addWidget(self._make_divider())
+        self._root.addSpacing(8)
+
         bar = QHBoxLayout()
-        bar.setContentsMargins(0, 0, 0, 0)
-        bar.setSpacing(5)
+        bar.setSpacing(8)
 
         self._dot = PulseDot(self)
-        self._status = QLabel("IDLE")
-        if ff:
-            stf = QFont(ff, 7)
-            stf.setLetterSpacing(QFont.AbsoluteSpacing, 1.2)
-            self._status.setFont(stf)
+        self._status = self._make_caption("IDLE")
         self._status.setStyleSheet(f"color: {MUTED};")
 
-        self._refresh_lbl = QLabel("")
-        if ff:
-            self._refresh_lbl.setFont(stf)
+        self._refresh_lbl = self._make_caption("")
         self._refresh_lbl.setStyleSheet(f"color: {MUTED};")
 
-        # align dot vertically with label
         dot_wrap = QWidget()
-        dot_lay  = QHBoxLayout(dot_wrap)
+        dot_lay = QHBoxLayout(dot_wrap)
         dot_lay.setContentsMargins(0, 2, 0, 0)
         dot_lay.addWidget(self._dot)
 
         bar.addWidget(dot_wrap)
         bar.addWidget(self._status)
-        bar.addStretch()
+        bar.addStretch(1)
         bar.addWidget(self._refresh_lbl)
-        root.addLayout(bar)
+        self._root.addLayout(bar)
 
-    # ── logic ─────────────────────────────────────────────────────────────────
+    def _set_button_font(self):
+        font_family = self._ff if self._ff else "Arial"
+        button_font = QFont(font_family, 9)
+        button_font.setLetterSpacing(QFont.AbsoluteSpacing, 1.8)
+        self._btn.setFont(button_font)
+
+    def _make_caption(self, text):
+        lbl = QLabel(text)
+        if self._ff:
+            f = QFont(self._ff, 8)
+            f.setLetterSpacing(QFont.AbsoluteSpacing, 1.2)
+            lbl.setFont(f)
+        lbl.setStyleSheet(f"color: {MUTED};")
+        return lbl
+
+    def _make_divider(self):
+        line = QWidget()
+        line.setFixedHeight(1)
+        line.setStyleSheet(f"background: {EDGE};")
+        return line
+
+    # ── logic ───────────────────────────────────────────────────────────────
     def _submit(self):
         name = self._field.text().strip()
         if not name:
             return
+
         self._player = name
+        self._prepare_for_fetch("Fetching latest profile...")
+        self._do_fetch(name)
+
+    def _prepare_for_fetch(self, message):
         self._set_busy(True)
         self._badge.clear()
         self._name_lbl.setText("")
-        self._sub.setStyleSheet(f"color: {MUTED}; letter-spacing: 0.5px;")
-        self._sub.setText("fetching…")
+        self._set_subtext(message)
         self._dot.stop()
         self._status.setText("FETCHING")
         self._refresh_timer.stop()
         self._countdown_timer.stop()
         self._refresh_lbl.setText("")
-        self._do_fetch(name)
 
     def _do_fetch(self, name):
-        w = FetchWorker(name)
-        w.signals.result.connect(self._on_result)
-        w.signals.error.connect(self._on_error)
-        self._pool.start(w)
+        worker = FetchWorker(name)
+        worker.signals.result.connect(self._on_result)
+        worker.signals.error.connect(self._on_error)
+        self._pool.start(worker)
 
     def _on_result(self, data):
-        rank    = data.get("rank", 0)
+        rank = data.get("rank", 0)
         img_url = data.get("rank_img", "")
-        name    = data.get("name", self._player)
+        name = data.get("name", self._player)
 
         self._name_lbl.setText(name)
-        self._sub.setText("")   # rank lives on the badge now
+        self._set_subtext(f"Tracking live rank updates every {self.REFRESH // 60} minutes.")
 
-        # Fetch image — keep ref so Python doesn't GC signals before they fire
         if img_url:
-            iw = ImageWorker(img_url)
-            self._workers.append(iw)
-            def _on_img(raw, _iw=iw, _rank=rank):
+            image_worker = ImageWorker(img_url)
+            self._workers.append(image_worker)
+
+            def _on_img(raw, _worker=image_worker, _rank=rank):
                 self._badge.set_data(raw, _rank)
-                if _iw in self._workers:
-                    self._workers.remove(_iw)
-            iw.signals.image.connect(_on_img)
-            self._pool.start(iw)
+                if _worker in self._workers:
+                    self._workers.remove(_worker)
+
+            image_worker.signals.image.connect(_on_img)
+            self._pool.start(image_worker)
         else:
             self._badge.set_data(b"", rank)
 
@@ -407,9 +443,8 @@ class MainWindow(QWidget):
         self._start_countdown()
         self._resize_to(name)
 
-    def _on_error(self, msg):
-        self._sub.setText(msg)
-        self._sub.setStyleSheet(f"color: {RED};")
+    def _on_error(self, message):
+        self._set_subtext(message, is_error=True)
         self._status.setText("ERROR")
         self._dot.stop()
         self._set_busy(False)
@@ -419,7 +454,7 @@ class MainWindow(QWidget):
 
     def _start_countdown(self):
         self._countdown = self.REFRESH
-        self._refresh_lbl.setText(f"↻  {self._countdown}s")
+        self._refresh_lbl.setText(f"↻  {self._format_countdown(self._countdown)}")
         self._countdown -= 1
         self._countdown_timer.start()
         self._refresh_timer.start(self.REFRESH * 1000)
@@ -430,27 +465,38 @@ class MainWindow(QWidget):
 
     def _tick_countdown(self):
         if self._countdown > 0:
-            self._refresh_lbl.setText(f"↻  {self._countdown}s")
+            self._refresh_lbl.setText(f"↻  {self._format_countdown(self._countdown)}")
             self._countdown -= 1
-        else:
-            self._refresh_lbl.setText("")
-            self._countdown_timer.stop()
+            return
+
+        self._refresh_lbl.setText("")
+        self._countdown_timer.stop()
+
+
+    def _format_countdown(self, seconds):
+        minutes, secs = divmod(seconds, 60)
+        if minutes and secs:
+            return f"{minutes}m {secs:02d}s"
+        if minutes:
+            return f"{minutes}m"
+        return f"{secs}s"
+
+    def _set_subtext(self, text, is_error=False):
+        color = RED if is_error else MUTED
+        self._sub.setStyleSheet(f"color: {color};")
+        self._sub.setText(text)
 
     def _set_busy(self, busy):
         self._field.setEnabled(not busy)
         self._btn.setEnabled(not busy)
 
     def _resize_to(self, name):
-        if self._ff:
-            nf = QFont(self._ff, 20, QFont.Bold)
-        else:
-            nf = QFont("Arial", 18, QFont.Bold)
-        fm   = QFontMetrics(nf)
-        nw   = fm.horizontalAdvance(name) + 80
-        bw   = self._badge.TOTAL + 56
-        want = max(nw, bw, 300)
-        if want > self.width():
-            self.setFixedWidth(want)
+        name_font = QFont(self._ff, 24, QFont.Bold) if self._ff else QFont("Arial", 20, QFont.Bold)
+        name_width = QFontMetrics(name_font).horizontalAdvance(name) + 100
+        badge_width = self._badge.TOTAL + 84
+        wanted = max(name_width, badge_width, self.MIN_WIDTH)
+        if wanted > self.width():
+            self.setFixedWidth(wanted)
 
 
 def main():
