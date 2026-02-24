@@ -87,8 +87,9 @@ A GitHub Actions workflow also runs these checks on pull requests.
 If GitHub shows conflicts in `README.md` and `bf6_rank_tracker.py`, you can run:
 
 ```bat
-resolve_conflicts_keep_branch.bat codex/improve-ui/ux-and-code-organization-3gr4oq
+resolve_conflicts_keep_branch.bat codex/improve-ui/ux-and-code-organization-3gr4oq theirs
 ```
 
-This script fetches `origin/main`, merges, keeps your branch version for the two known files, runs checks, and creates a merge-resolution commit.
+Use `theirs` (recommended) to keep `main`'s version for the two known conflict files, or `ours` to keep the branch version.
+The script fetches `origin/main`, merges, resolves `README.md` and `bf6_rank_tracker.py`, runs checks, and creates a merge-resolution commit.
 
