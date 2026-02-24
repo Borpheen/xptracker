@@ -60,3 +60,11 @@ python -m tabnanny bf6_rank_tracker.py
 ```
 
 After markers are removed, the app should run normally.
+
+Before committing or opening a PR, you can run:
+
+```bash
+python check_merge_conflicts.py
+```
+
+This catches unresolved merge markers early.
